@@ -11,13 +11,15 @@ app/
   core/config.py                 configuración: HEADLESS, límites, caché, tiempos de espera
   routes/                        endpoints HTTP (ruta, parámetros, docs) → salud.py, perfil.py
   controllers/perfil_controller  caso de uso: caché → scraper (lock) → errores 404/502
-  services/tiktok_scraper.py     Crawlee + Playwright; captura /api/post/item_list/, /api/comment/list/
-                                 y el JSON #__UNIVERSAL_DATA_FOR_REHYDRATION__
+  services/tiktok_scraper.py     Crawlee + Playwright, UNA sola página: perfil → clic en cada video de la
+                                 cuadrícula (modal) → captura /api/post/item_list/ y /api/comment/list/
+                                 + JSON #__UNIVERSAL_DATA_FOR_REHYDRATION__
   services/cache.py              caché en memoria con TTL (15 min)
   validations/usuario.py         normaliza el usuario (quita @, espacios, mayúsculas)
   schemas/perfil.py              modelos Pydantic = contrato JSON con la app móvil
   utils/normalizadores.py        JSON de TikTok → formato en español
   utils/formato.py               fechas ISO, anonimización SHA-256
+  utils/cronometro.py            log de tiempos por etapa (logger "tiktok_api")
 ```
 Flujo: routes → validations → controllers → services → utils → schemas.
 Cada archivo y función lleva docstring en español explicando qué hace.
@@ -28,6 +30,17 @@ Cada archivo y función lleva docstring en español explicando qué hace.
 - Ejecutar: `python main.py` → docs en http://localhost:8000/docs
 - Modo oculto: `env HEADLESS=true python main.py`
 - Crawlee 1.x: `ConcurrencySettings` necesita `min`, `desired` y `max_concurrency` coherentes.
+- `BLOQUEAR_RECURSOS=true` bloquea imágenes/video/fuentes (apagado por defecto: sin beneficio medido).
+- Commits: los hace el usuario. Perfil para pruebas reales: `jordifiallos`.
+
+## Lecciones del scraper (no repetir)
+- NO abrir `/video/{id}` directamente: TikTok responde `ERR_HTTP_RESPONSE_CODE_FAILURE` y no carga comentarios.
+  Abrir el video con clic desde la cuadrícula (`[data-e2e="user-post-item"] a`), cerrar con `browse-close`.
+- Playwright "pelado" (sin Crawlee/fingerprints) dispara captcha; usar siempre `PlaywrightCrawler`.
+- Viewport de Crawlee = 2560×1440: no usar coordenadas fijas de mouse; usar selectores `data-e2e`.
+- Esperas por condición (`_esperar_hasta`), no fijas. Saltar videos con `estadisticas.comentarios == 0`.
+- `commentCount` de TikTok incluye respuestas; solo se extrae primer nivel (puede salir menos).
+- Medición (jordifiallos, 7 videos, 2 con comentarios): 98 s con el método viejo → ~14 s con el nuevo.
 
 ## Reglas del proyecto
 - **Solo datos públicos.** Nada que requiera iniciar sesión, cuentas privadas ni evasión agresiva de bloqueos.
@@ -60,7 +73,7 @@ videos[]
 Errores: `400` usuario vacío · `404` perfil no encontrado/privado/bloqueado · `502` fallo en la extracción.
 
 ## Limitaciones conocidas
-Lento (1–3 min por consulta nueva), frágil ante cambios internos de TikTok, captchas/bloqueos,
+Tarda ~3 s + ~2–7 s por video con comentarios, frágil ante cambios internos de TikTok, captchas/bloqueos,
 comentarios solo de primer nivel, datos como foto del momento (sin historial), caché se pierde al reiniciar.
 
 ## Pendientes / ideas

@@ -6,12 +6,17 @@ Ejecutar:  python main.py   ->  http://localhost:8000/docs
 Este archivo solo crea la aplicación, configura CORS y registra los endpoints.
 El resto del código está organizado en la carpeta app/ (ver app/__init__.py).
 """
+import logging
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core import config
 from app.routes import perfil, salud
+
+# Muestra en consola los tiempos por etapa del scraper (logger "tiktok_api")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(
     title="TikTok Data API (académica)",

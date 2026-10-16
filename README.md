@@ -89,7 +89,7 @@ Desde una app móvil en emulador Android usa `http://10.0.2.2:8000`; en un celul
 
 ## Notas
 
-- La primera petición tarda (1–3 min con comentarios) porque abre un navegador real. Las siguientes salen de la caché.
+- La primera petición abre un navegador real: ~3 s para el perfil y ~2–7 s por cada video con comentarios (los videos sin comentarios no se abren). Las siguientes salen de la caché.
 - Se abre una ventana de Chromium: si aparece un captcha, resuélvelo a mano. Para modo oculto: `HEADLESS=true` (TikTok lo bloquea con más frecuencia).
 - Errores: `400` usuario vacío; `404` perfil inexistente, privado o bloqueado; `502` fallo durante la extracción.
 - Los nombres de los campos internos de TikTok pueden cambiar; si algo deja de llegar, revisa la pestaña **Network** del navegador (`/api/post/item_list/`, `/api/comment/list/`).
