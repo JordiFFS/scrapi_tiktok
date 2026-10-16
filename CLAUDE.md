@@ -4,11 +4,23 @@
 API REST en Python que extrae datos **públicos** de perfiles de TikTok y los devuelve en JSON
 para una app móvil que los mostrará en una interfaz gráfica.
 
-- `scraper.py` → extracción con **Crawlee + Playwright** (Chromium). Captura las respuestas
-  internas de TikTok (`/api/post/item_list/`, `/api/comment/list/`) y el JSON incrustado
-  `#__UNIVERSAL_DATA_FOR_REHYDRATION__` del perfil.
-- `main.py` → **FastAPI**. Endpoint principal `GET /api/perfil/{usuario}`, caché en memoria de 15 min,
-  una extracción a la vez (lock), CORS abierto para la app.
+## Estructura de carpetas
+```
+main.py                          crea la app, CORS y registra routers (único archivo en la raíz)
+app/
+  core/config.py                 configuración: HEADLESS, límites, caché, tiempos de espera
+  routes/                        endpoints HTTP (ruta, parámetros, docs) → salud.py, perfil.py
+  controllers/perfil_controller  caso de uso: caché → scraper (lock) → errores 404/502
+  services/tiktok_scraper.py     Crawlee + Playwright; captura /api/post/item_list/, /api/comment/list/
+                                 y el JSON #__UNIVERSAL_DATA_FOR_REHYDRATION__
+  services/cache.py              caché en memoria con TTL (15 min)
+  validations/usuario.py         normaliza el usuario (quita @, espacios, mayúsculas)
+  schemas/perfil.py              modelos Pydantic = contrato JSON con la app móvil
+  utils/normalizadores.py        JSON de TikTok → formato en español
+  utils/formato.py               fechas ISO, anonimización SHA-256
+```
+Flujo: routes → validations → controllers → services → utils → schemas.
+Cada archivo y función lleva docstring en español explicando qué hace.
 
 ## Entorno
 - Shell: **fish** en Linux. Activar entorno: `source venv/bin/activate.fish`
@@ -24,7 +36,7 @@ para una app móvil que los mostrará en una interfaz gráfica.
   No exponer nombres de usuario de terceros.
 - **Sin archivos:** la API responde en JSON; no guardar datasets en disco salvo que se pida.
 - Mantener los nombres de campos en **español** y la estructura JSON estable (la app móvil depende de ella).
-  Si se cambia un campo, actualizar el ejemplo del README.
+  Si se cambia un campo, actualizar `app/schemas/perfil.py`, el normalizador y el ejemplo del README.
 
 ## Estructura de la respuesta
 `GET /api/perfil/{usuario}` → el usuario se escribe sin `@` (si viene con `@`, espacios o

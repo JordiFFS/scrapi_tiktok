@@ -6,7 +6,7 @@ API REST en Python que extrae datos **públicos** de un perfil de TikTok con **C
 
 ```bash
 python -m venv venv
-venv\Scripts\activate        # Windows  (Linux/Mac: source venv/bin/activate)
+source venv/bin/activate.fish   # fish  (bash: source venv/bin/activate · Windows: venv\Scripts\activate)
 pip install -r requirements.txt
 playwright install chromium
 ```
@@ -20,12 +20,26 @@ python main.py
 - Documentación interactiva: http://localhost:8000/docs
 - Prueba: http://localhost:8000/api/perfil/nombre_usuario?max_videos=5&max_comentarios=10
 
+## Estructura
+
+```
+main.py                 punto de entrada (crea la app y registra endpoints)
+app/
+  core/          configuración (variables de entorno, límites, tiempos)
+  routes/        endpoints HTTP
+  controllers/   lógica de cada caso de uso
+  services/      scraper de TikTok y caché
+  validations/   limpieza/validación de entradas
+  schemas/       modelos de la respuesta JSON
+  utils/         normalizadores y funciones auxiliares
+```
+
 ## Endpoints
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/salud` | Verifica que la API esté activa |
-| GET | `/api/perfil/{usuario}` | Perfil, últimos posts, estadísticas y comentarios |
+| GET | `/api/perfil/{usuario}` | Perfil, últimos posts, estadísticas y comentarios (el usuario va con o sin `@`) |
 
 Parámetros de `/api/perfil/{usuario}`:
 
@@ -77,6 +91,6 @@ Desde una app móvil en emulador Android usa `http://10.0.2.2:8000`; en un celul
 
 - La primera petición tarda (1–3 min con comentarios) porque abre un navegador real. Las siguientes salen de la caché.
 - Se abre una ventana de Chromium: si aparece un captcha, resuélvelo a mano. Para modo oculto: `HEADLESS=true` (TikTok lo bloquea con más frecuencia).
-- Errores: `404` perfil inexistente, privado o bloqueado; `502` fallo durante la extracción.
+- Errores: `400` usuario vacío; `404` perfil inexistente, privado o bloqueado; `502` fallo durante la extracción.
 - Los nombres de los campos internos de TikTok pueden cambiar; si algo deja de llegar, revisa la pestaña **Network** del navegador (`/api/post/item_list/`, `/api/comment/list/`).
 - Uso académico: perfiles públicos, bajo volumen, autores de comentarios anonimizados (LOPDP Ecuador).
