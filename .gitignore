@@ -1,0 +1,39 @@
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Variables de entorno / secretos
+.env
+.env.*
+
+# Crawlee / Playwright (almacenamiento local, datos extraídos)
+storage/
+playwright-report/
+test-results/
+
+# Datos exportados (la API no guarda datasets en disco)
+*.json.bak
+datos/
+exports/
+
+# Logs
+*.log
+
+# Editores y sistema
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Configuración local de Claude Code
+.claude/settings.local.json
