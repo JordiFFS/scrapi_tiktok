@@ -16,11 +16,9 @@ rechazos de TikTok (ERR_HTTP_RESPONSE_CODE_FAILURE) y no cargaba comentarios.
 Todas las esperas son "hasta que llegue el dato o se acabe el tiempo máximo" (ver config.py),
 así no se pierde tiempo cuando TikTok responde rápido.
 """
-import asyncio
 import logging
 import uuid
 from datetime import timedelta
-from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from crawlee import ConcurrencySettings, Request
@@ -33,7 +31,9 @@ from crawlee.storage_clients import MemoryStorageClient
 from playwright.async_api import Page
 
 from app.core import config
+from app.services.navegador import correr_con_limite
 from app.utils.cronometro import Cronometro
+from app.utils.esperas import esperar_hasta
 from app.utils.formato import ahora_iso
 from app.utils.normalizadores import (
     normalizar_comentario,
@@ -42,22 +42,6 @@ from app.utils.normalizadores import (
 )
 
 log = logging.getLogger("tiktok_api")
-
-
-async def _esperar_hasta(condicion: Callable[[], bool], max_ms: int, paso_ms: int = 200) -> bool:
-    """
-    Revisa `condicion()` cada `paso_ms` hasta que sea verdadera o pasen `max_ms`.
-
-    Devuelve True si se cumplió y False si se acabó el tiempo. Reemplaza a las esperas
-    fijas: si el dato llega en 0.5 s, se sigue a los 0.5 s y no a los 4 s.
-    """
-    transcurrido = 0
-    while not condicion():
-        if transcurrido >= max_ms:
-            return False
-        await asyncio.sleep(paso_ms / 1000)
-        transcurrido += paso_ms
-    return True
 
 
 async def extraer_perfil(
@@ -84,6 +68,8 @@ async def extraer_perfil(
     comentarios: dict[str, list] = {}       # id_video -> comentarios capturados
     hay_mas_comentarios: dict[str, bool] = {}  # id_video -> "has_more" de su última respuesta
 
+    paginas: set = set()  # páginas abiertas (ver correr_con_limite)
+
     crawler = PlaywrightCrawler(
         headless=config.HEADLESS,
         browser_type="chromium",
@@ -103,8 +89,10 @@ async def extraer_perfil(
           - (opcional) bloquea imágenes, videos y fuentes para que la página cargue más rápido;
           - registra un listener que captura las respuestas JSON de TikTok.
         """
+        paginas.add(context.page)  # para poder cerrarla si se agota el tiempo
         if config.BLOQUEAR_RECURSOS:
             async def filtrar(route):
+                """Cancela imágenes, videos y fuentes; deja pasar todo lo demás."""
                 if route.request.resource_type in config.TIPOS_BLOQUEADOS:
                     await route.abort()
                 else:
@@ -113,6 +101,7 @@ async def extraer_perfil(
             await context.page.route("**/*", filtrar)
 
         async def on_response(response):
+            """Captura las respuestas de la API interna de TikTok: lista de videos y comentarios."""
             nonlocal hay_mas_videos
             url = response.url
             try:
@@ -149,7 +138,7 @@ async def extraer_perfil(
 
         await page.locator(f'[data-e2e="user-post-item"] a[href*="/video/{vid}"]').first.click()
 
-        if await _esperar_hasta(lambda: vid in comentarios, config.ESPERA_MAX_COMENTARIOS_MS):
+        if await esperar_hasta(lambda: vid in comentarios, config.ESPERA_MAX_COMENTARIOS_MS):
             for _ in range(config.INTENTOS_SCROLL_COMENTARIOS):
                 antes = len(comentarios[vid])
                 if antes >= objetivo or not hay_mas_comentarios.get(vid):
@@ -158,7 +147,7 @@ async def extraer_perfil(
                 ultimo = page.locator('[data-e2e="comment-level-1"]').last
                 await ultimo.scroll_into_view_if_needed()
                 await page.mouse.wheel(0, 1500)
-                if not await _esperar_hasta(
+                if not await esperar_hasta(
                     lambda: len(comentarios[vid]) > antes, config.ESPERA_MAX_MAS_COMENTARIOS_MS
                 ):
                     break
@@ -180,21 +169,32 @@ async def extraer_perfil(
         page = context.page
         crono.marca("navegador + perfil abiertos")
 
-        raw = await page.locator("#__UNIVERSAL_DATA_FOR_REHYDRATION__").text_content()
-        perfil = normalizar_perfil(raw or "")
+        # El JSON del perfil (~180 KB) puede leerse a medio descargar ("Unterminated string"):
+        # esperar a que el HTML esté completo y, si aun así llega cortado, releerlo unos instantes.
+        # count() no espera: si TikTok mostró un captcha o bloqueo (sin el JSON) no se pierden
+        # 30 s por intento en text_content().
+        await page.wait_for_load_state("domcontentloaded")
+        datos = page.locator("#__UNIVERSAL_DATA_FOR_REHYDRATION__")
+        for intento in range(config.INTENTOS_LEER_PERFIL):
+            if await datos.count():
+                perfil = normalizar_perfil(await datos.first.text_content() or "")
+                if perfil:
+                    break
+            if intento < config.INTENTOS_LEER_PERFIL - 1:
+                await page.wait_for_timeout(500)
         crono.marca("perfil leído" if perfil else "perfil NO encontrado")
         if not perfil:
             return
 
         # Videos: no esperar más de los que la cuenta tiene
         objetivo = min(max_videos, perfil["total_videos"] or max_videos)
-        await _esperar_hasta(lambda: len(videos) > 0, config.ESPERA_MAX_VIDEOS_MS)
+        await esperar_hasta(lambda: len(videos) > 0, config.ESPERA_MAX_VIDEOS_MS)
         for _ in range(config.INTENTOS_SCROLL_PERFIL):
             antes = len(videos)
             if antes >= objetivo or not hay_mas_videos:
                 break
             await page.mouse.wheel(0, 3000)
-            await _esperar_hasta(lambda: len(videos) > antes, config.ESPERA_MAX_SCROLL_PERFIL_MS)
+            await esperar_hasta(lambda: len(videos) > antes, config.ESPERA_MAX_SCROLL_PERFIL_MS)
         crono.marca(f"videos listos ({len(videos)})")
 
         if not (con_comentarios and max_comentarios > 0):
@@ -212,9 +212,12 @@ async def extraer_perfil(
             crono.marca(f"video {video['id'][-6:]} ({len(comentarios.get(video['id'], []))} coment.)")
             await page.wait_for_timeout(config.PAUSA_ENTRE_VIDEOS_MS)
 
-    await crawler.run([
-        Request.from_url(f"https://www.tiktok.com/@{usuario}", unique_key=f"perfil-{usuario}-{run_id}")
-    ])
+    await correr_con_limite(
+        crawler,
+        [Request.from_url(f"https://www.tiktok.com/@{usuario}", unique_key=f"perfil-{usuario}-{run_id}")],
+        paginas,
+        config.EXTRACCION_TIEMPO_MAX_SEG,
+    )
     crono.marca("navegador cerrado")
 
     # Une cada video con los comentarios capturados para él

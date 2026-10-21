@@ -11,6 +11,7 @@ class CacheMemoria:
     """Diccionario clave -> (momento_guardado, datos) que ignora entradas vencidas."""
 
     def __init__(self, ttl_segundos: int):
+        """`ttl_segundos`: cuánto vive cada entrada antes de considerarse vencida."""
         self.ttl = ttl_segundos
         self._datos: dict[str, tuple[float, dict]] = {}
 

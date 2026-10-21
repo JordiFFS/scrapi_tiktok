@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 
 class Comentario(BaseModel):
+    """Comentario de primer nivel. El autor NUNCA se muestra: solo su hash (LOPDP)."""
     id: str | None = None
     texto: str | None = None
     fecha: str | None = None            # ISO 8601 UTC
@@ -22,6 +23,7 @@ class Comentario(BaseModel):
 
 
 class Estadisticas(BaseModel):
+    """Contadores públicos del video en el momento de la extracción."""
     vistas: int | None = None
     likes: int | None = None
     comentarios: int | None = None
@@ -30,6 +32,7 @@ class Estadisticas(BaseModel):
 
 
 class Video(BaseModel):
+    """Un post del perfil con sus estadísticas y comentarios."""
     id: str | None = None
     url: str
     descripcion: str | None = None
@@ -43,6 +46,7 @@ class Video(BaseModel):
 
 
 class Perfil(BaseModel):
+    """Datos públicos de la cuenta."""
     usuario: str | None = None
     nombre: str | None = None
     biografia: str | None = None
@@ -53,9 +57,12 @@ class Perfil(BaseModel):
     siguiendo: int | None = None
     likes_totales: int | None = None
     total_videos: int | None = None
+    enlace_bio: str | None = None                 # web del perfil, si la cuenta la configuró
+    redes_en_biografia: dict[str, str] = {}       # ej. {"instagram": "usuario"}; claves: instagram, youtube, x, facebook
 
 
 class RespuestaPerfil(BaseModel):
+    """Respuesta completa de GET /api/perfil/{usuario}."""
     desde_cache: bool                   # true si salió de la caché de 15 min
     usuario: str                        # normalizado, sin "@"
     fecha_extraccion: str               # cuándo se extrajo (ISO 8601 UTC)

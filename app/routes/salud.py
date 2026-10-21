@@ -8,4 +8,5 @@ router = APIRouter(prefix="/api", tags=["Salud"])
 
 @router.get("/salud", summary="Verifica que la API esté activa")
 async def salud():
+    """Responde {"estado": "ok"} si el servidor está encendido. No abre el navegador."""
     return {"estado": "ok"}

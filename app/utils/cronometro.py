@@ -15,7 +15,9 @@ log = logging.getLogger("tiktok_api")
 
 
 class Cronometro:
+    """Mide etapas de una extracción; `etiqueta` identifica la corrida en el log (usuario o #hashtag)."""
     def __init__(self, etiqueta: str):
+        """Empieza a contar desde este momento."""
         self.etiqueta = etiqueta
         self.inicio = self.ultimo = time.perf_counter()
 

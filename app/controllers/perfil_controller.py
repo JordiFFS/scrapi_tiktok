@@ -6,19 +6,28 @@ TikTok (eso es de services/). Solo decide el orden y los errores:
 
     1. Buscar en caché.
     2. Si no está, extraer (una extracción a la vez).
-    3. Traducir fallos a códigos HTTP (404 / 502).
+    3. Traducir fallos a códigos HTTP (404 / 502, también si pasa EXTRACCION_TIEMPO_MAX_SEG).
     4. Guardar en caché y responder.
 """
-import asyncio
-
 from fastapi import HTTPException
 
 from app.core import config
 from app.services import tiktok_scraper
 from app.services.cache import CacheMemoria
+from app.services.navegador import lock_navegador
 
 _cache = CacheMemoria(config.CACHE_SEGUNDOS)
-_lock = asyncio.Lock()  # una extracción a la vez (más respetuoso con TikTok)
+
+
+def _clave(usuario: str, max_videos: int, comentarios: bool, max_comentarios: int) -> str:
+    """Clave de caché: la misma consulta con los mismos parámetros comparte resultado."""
+    return f"{usuario}|{max_videos}|{comentarios}|{max_comentarios}"
+
+
+def desde_cache(usuario: str, max_videos: int, comentarios: bool, max_comentarios: int) -> dict | None:
+    """Respuesta guardada para estos parámetros, o None. No abre el navegador (lo usa la cola)."""
+    guardado = _cache.obtener(_clave(usuario, max_videos, comentarios, max_comentarios))
+    return {"desde_cache": True, **guardado} if guardado else None
 
 
 async def obtener_perfil(
@@ -34,14 +43,19 @@ async def obtener_perfil(
     `usuario` debe venir ya normalizado (ver app/validations/usuario.py).
     La respuesta incluye "desde_cache" para que la app sepa si el dato es reciente.
     """
-    clave = f"{usuario}|{max_videos}|{comentarios}|{max_comentarios}"
+    clave = _clave(usuario, max_videos, comentarios, max_comentarios)
 
-    if not refrescar and (guardado := _cache.obtener(clave)):
-        return {"desde_cache": True, **guardado}
+    if not refrescar and (guardado := desde_cache(usuario, max_videos, comentarios, max_comentarios)):
+        return guardado
 
-    async with _lock:
+    async with lock_navegador:  # un navegador a la vez (compartido con la búsqueda)
         try:
             datos = await tiktok_scraper.extraer_perfil(usuario, max_videos, comentarios, max_comentarios)
+        except TimeoutError:  # el scraper pasó de EXTRACCION_TIEMPO_MAX_SEG y se detuvo
+            raise HTTPException(
+                status_code=502,
+                detail=f"La extracción superó {config.EXTRACCION_TIEMPO_MAX_SEG} s y se canceló. Intenta de nuevo.",
+            )
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Error al extraer datos: {e}")
 

@@ -7,6 +7,7 @@ Si TikTok cambia el nombre de un campo interno, normalmente solo hay que tocar e
 import json
 
 from app.utils.formato import anonimizar, fecha_iso
+from app.utils.redes_sociales import detectar_redes
 
 
 def normalizar_perfil(raw: str) -> dict | None:
@@ -22,6 +23,7 @@ def normalizar_perfil(raw: str) -> dict | None:
     except (KeyError, TypeError, json.JSONDecodeError):
         return None
     u, s = info.get("user", {}), info.get("stats", {})
+    enlace_bio = (u.get("bioLink") or {}).get("link")  # solo existe si la cuenta lo configuró
     return {
         "usuario": u.get("uniqueId"),
         "nombre": u.get("nickname"),
@@ -33,6 +35,9 @@ def normalizar_perfil(raw: str) -> dict | None:
         "siguiendo": s.get("followingCount"),
         "likes_totales": s.get("heartCount"),
         "total_videos": s.get("videoCount"),
+        "enlace_bio": enlace_bio,
+        # Redes que el dueño escribió públicamente en su bio o enlace (ver utils/redes_sociales.py)
+        "redes_en_biografia": detectar_redes(u.get("signature"), enlace_bio),
     }
 
 
@@ -62,6 +67,25 @@ def normalizar_video(v: dict, usuario: str) -> dict:
         },
         "comentarios": [],
     }
+
+
+def normalizar_video_busqueda(v: dict) -> dict:
+    """
+    Video que llega de una página de hashtag (/api/challenge/item_list/).
+
+    Igual que normalizar_video, pero agrega "creador" porque cada video es de una cuenta
+    distinta. El creador SÍ se muestra (es el autor público del contenido); los autores de
+    comentarios siguen anonimizados.
+    """
+    autor = v.get("author") or {}
+    video = normalizar_video(v, autor.get("uniqueId") or "")
+    video["creador"] = {
+        "usuario": autor.get("uniqueId"),
+        "nombre": autor.get("nickname"),
+        "verificado": autor.get("verified"),
+        "seguidores": (v.get("authorStats") or {}).get("followerCount"),
+    }
+    return video
 
 
 def normalizar_comentario(c: dict) -> dict:
