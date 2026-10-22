@@ -63,7 +63,7 @@ class Perfil(BaseModel):
 
 class RespuestaPerfil(BaseModel):
     """Respuesta completa de GET /api/perfil/{usuario}."""
-    desde_cache: bool                   # true si salió de la caché de 15 min
+    desde_cache: bool                   # true si salió de la caché de 1 hora
     usuario: str                        # normalizado, sin "@"
     fecha_extraccion: str               # cuándo se extrajo (ISO 8601 UTC)
     perfil: Perfil

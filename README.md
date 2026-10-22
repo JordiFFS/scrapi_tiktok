@@ -135,7 +135,7 @@ Las reales pueden fallar si TikTok está limitando las consultas: no es necesari
 | `max_videos` | 10 (máx. 30) | Posts recientes a extraer |
 | `comentarios` | true | Incluir comentarios |
 | `max_comentarios` | 20 (máx. 100) | Comentarios por post (solo primer nivel) |
-| `refrescar` | false | Ignorar la caché de 15 min |
+| `refrescar` | false | Ignorar la caché de 1 hora |
 
 ```json
 {
@@ -242,7 +242,7 @@ async function extraer(solicitud) {
 
 | Operación | Tiempo aproximado |
 |---|---|
-| Respuesta desde caché (15 min) | instantánea |
+| Respuesta desde caché (1 hora) | instantánea |
 | Perfil sin comentarios | ~5–7 s |
 | Perfil con comentarios | ~3 s + 2–7 s por cada video que tenga comentarios |
 | Búsqueda por tema | ~10–30 s (según cuántos hashtags existan) |
@@ -298,7 +298,7 @@ El código está en `app/services/analisis.py` (sin nada de FastAPI, comentado p
 ### Cómo funciona paso a paso
 
 ```
-1. analisis_controller   ¿análisis en caché (15 min)? → responde al instante (desde_cache=true)
+1. analisis_controller   ¿análisis en caché (1 hora)? → responde al instante (desde_cache=true)
 2.                       obtiene el perfil con el MISMO controller de /api/perfil:
                          si ya fue extraído (caché) NO se vuelve a abrir TikTok
 3. asyncio.to_thread     los modelos usan CPU varios segundos: corren en otro hilo para que la
@@ -397,5 +397,5 @@ la API arranca rápido y los modelos se cargan con el primer análisis).
   los porcentajes cambian mucho (2 comentarios → solo 0 %, 50 % o 100 %).
 - **Privacidad (LOPDP Ecuador)**: nunca se estima la personalidad de los comentaristas ni se devuelve
   el sentimiento de un comentario o una persona concreta: solo porcentajes agregados. Todo se
-  procesa en la PC y vive en memoria (caché de 15 min), no se guarda en disco.
+  procesa en la PC y vive en memoria (caché de 1 hora), no se guarda en disco.
 - **Recursos**: ~2–3 GB de RAM extra (estimado) con los modelos cargados; se procesa un análisis a la vez.

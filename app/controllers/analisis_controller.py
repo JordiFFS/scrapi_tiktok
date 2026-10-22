@@ -1,7 +1,7 @@
 """
 Controller del análisis: "Big Five del creador + sentimiento de sus comentarios".
 
-    1. Buscar el análisis en su propia caché (15 min).
+    1. Buscar el análisis en su propia caché (1 hora).
     2. Obtener el perfil con el MISMO controller de /api/perfil: si ya fue extraído (caché),
        no se vuelve a abrir TikTok; si no, se extrae con el navegador (lock, 404, 502...).
     3. Ejecutar los modelos en otro hilo (asyncio.to_thread): usan CPU varios segundos y,

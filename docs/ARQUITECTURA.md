@@ -87,7 +87,7 @@ app/
 │   ├── tiktok_busqueda.py      Junta videos candidatos desde páginas /tag/{hashtag}
 │   ├── navegador.py            lock_navegador (un navegador a la vez) y correr_con_limite (tiempo máximo)
 │   ├── cola_extracciones.py    Cola en memoria con UN trabajador para las extracciones asíncronas
-│   ├── cache.py                Caché en memoria con vencimiento (15 min)
+│   ├── cache.py                Caché en memoria con vencimiento (1 hora)
 │   ├── embeddings.py           Carga el modelo local y calcula similitudes
 │   ├── ranking.py              Puntaje = 0.5 relevancia + 0.3 interacción + 0.2 alcance
 │   └── analisis.py             IA local: traducción + Big Five del creador + sentimiento agregado
@@ -132,7 +132,7 @@ se puede probar (o reemplazar por un falso en las pruebas) sin levantar la API.
 ```
 1. routes/perfil.py          recibe la petición y los parámetros (FastAPI valida rangos → 422)
 2. validations/usuario.py    normaliza el usuario ("@Jordi" → "jordi") o responde 400
-3. perfil_controller         ¿está en caché (15 min)? → responde al instante con desde_cache=true
+3. perfil_controller         ¿está en caché (1 hora)? → responde al instante con desde_cache=true
 4.                           si no: toma lock_navegador (un navegador a la vez en toda la API)
 5. tiktok_scraper            abre https://www.tiktok.com/@jordi en Chromium (vía correr_con_limite)
    a. lee el JSON incrustado del perfil (reintenta si llegó a medio descargar)
@@ -198,7 +198,7 @@ GET /api/extracciones/{id} → estado actual, posición en la cola y cada cuánt
 | Big Five solo del **creador**; comentarios solo agregados | LOPDP: los comentaristas no son sujeto de perfilamiento |
 | Un navegador a la vez + cola con un trabajador | Bajo volumen (menos bloqueos de TikTok, menos RAM) |
 | Tiempo máximo propio (`correr_con_limite`) | `crawler.run()` de Crawlee ignora la cancelación; sin esto un navegador trabado bloqueaba la cola indefinidamente |
-| Caché en memoria de 15 min | Evita repetir extracciones; acepta que se pierda al reiniciar |
+| Caché en memoria de 1 hora | Evita repetir extracciones; acepta que se pierda al reiniciar |
 | Campos en **español** y estructura estable | La app móvil depende de ellos; cualquier cambio se refleja en `schemas/`, normalizadores y README |
 
 ## 5. Limitaciones conocidas

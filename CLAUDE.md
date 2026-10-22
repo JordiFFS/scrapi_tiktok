@@ -25,7 +25,7 @@ app/
                                  (Minej/bert-base-personality) + pysentimiento; carga perezosa de modelos
   services/cola_extracciones.py  cola en memoria + 1 trabajador (iniciado en el lifespan de main.py)
   services/navegador.py          lock_navegador (un navegador a la vez) + correr_con_limite (tiempo máximo real)
-  services/cache.py              caché en memoria con TTL (15 min)
+  services/cache.py              caché en memoria con TTL (1 hora)
   validations/usuario.py         normaliza el usuario (quita @, espacios, mayúsculas)
   schemas/perfil.py              modelos Pydantic = contrato JSON con la app móvil (también busqueda,
                                  analisis, extracciones)

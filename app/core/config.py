@@ -28,7 +28,7 @@ BLOQUEAR_RECURSOS = os.getenv("BLOQUEAR_RECURSOS", "false").lower() == "true"
 TIPOS_BLOQUEADOS = {"image", "media", "font"}
 
 # --- Caché ---
-CACHE_SEGUNDOS = 15 * 60  # evita volver a extraer el mismo perfil seguido
+CACHE_SEGUNDOS = 60 * 60  # 1 hora: evita volver a extraer el mismo perfil seguido
 
 # --- Límites (reglas del proyecto: bajo volumen) ---
 VIDEOS_POR_DEFECTO = 10
