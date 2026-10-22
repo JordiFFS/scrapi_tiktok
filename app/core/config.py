@@ -80,3 +80,17 @@ SIMILITUD_MAXIMA = 0.9
 TASA_INTERACCION_REFERENCIA = 0.15  # 15 % de interacción sobre vistas ya es excelente
 SUAVIZADO_VISTAS = 1000         # evita que un video con 10 vistas y 5 likes gane por casualidad
 VISTAS_REFERENCIA = 10_000_000  # 10 M de vistas = alcance máximo
+
+# --- Análisis con Hugging Face (GET /api/analisis) ---
+# Modelos locales con transformers (sin token). Se descargan la primera vez (~1.6 GB en total)
+# a la caché de Hugging Face (~/.cache/huggingface, fuera del proyecto) y se cargan al primer uso.
+MODELO_TRADUCCION = "Helsinki-NLP/opus-mt-es-en"            # español -> inglés (~300 MB)
+MODELO_BIG5 = "Minej/bert-base-personality"                 # Big Five, solo entiende inglés (~440 MB)
+MODELO_SENTIMIENTO = "pysentimiento/robertuito-sentiment-analysis"  # POS/NEU/NEG en español (~435 MB)
+MODELO_EMOCIONES = "pysentimiento/robertuito-emotion-analysis"      # 7 emociones en español (~435 MB)
+# Con menos textos que esto el Big Five igual se calcula, pero se avisa que es poco confiable
+ANALISIS_TEXTOS_MINIMOS = 10
+# Tokens máximos por trozo. Ambos modelos aceptan 512; se deja margen para los tokens especiales.
+ANALISIS_TOKENS_TRADUCCION = 400
+ANALISIS_TOKENS_BIG5 = 500
+ANALISIS_LOTE_TRADUCCION = 8  # trozos que se traducen juntos (más = más RAM, no mucho más rápido)

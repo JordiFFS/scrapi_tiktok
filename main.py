@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core import config
-from app.routes import busqueda, extracciones, perfil, salud
+from app.routes import analisis, busqueda, extracciones, perfil, salud
 from app.services import embeddings
 from app.services.cola_extracciones import cola
 
@@ -36,8 +36,11 @@ async def ciclo_de_vida(app: FastAPI):
 
 app = FastAPI(
     title="TikTok Data API (académica)",
-    description="Datos públicos de perfiles, posts, estadísticas y comentarios de TikTok.",
-    version="1.3.0",
+    description=(
+        "Datos públicos de perfiles, posts, estadísticas y comentarios de TikTok, "
+        "y análisis local con modelos de Hugging Face (Big Five del creador, sentimiento de comentarios)."
+    ),
+    version="1.4.0",
     lifespan=ciclo_de_vida,
 )
 
@@ -53,6 +56,7 @@ app.add_middleware(
 app.include_router(salud.router)
 app.include_router(perfil.router)
 app.include_router(busqueda.router)
+app.include_router(analisis.router)
 app.include_router(extracciones.router)
 
 

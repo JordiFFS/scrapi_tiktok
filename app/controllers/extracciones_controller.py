@@ -1,23 +1,23 @@
 """
 Controller de extracciones asíncronas.
 
-Traduce una solicitud de la app (perfil o búsqueda) en una tarea para la cola
+Traduce una solicitud de la app (perfil, búsqueda o análisis) en una tarea para la cola
 (services/cola_extracciones.py) y convierte el estado interno al formato de respuesta.
 
 La tarea reutiliza los MISMOS controllers que los endpoints directos, así que caché,
 validaciones, lock del navegador y errores se comportan igual en ambos caminos.
 """
-from app.controllers import busqueda_controller, perfil_controller
+from app.controllers import analisis_controller, busqueda_controller, perfil_controller
 from app.core import config
-from app.schemas.extracciones import SolicitudBusqueda, SolicitudPerfil
+from app.schemas.extracciones import SolicitudAnalisis, SolicitudBusqueda, SolicitudPerfil
 from app.services.cola_extracciones import Extraccion, cola
 from app.validations.busqueda import normalizar_consulta
 from app.validations.usuario import normalizar_usuario
 
 
-def crear(solicitud: SolicitudPerfil | SolicitudBusqueda) -> dict:
+def crear(solicitud: SolicitudPerfil | SolicitudBusqueda | SolicitudAnalisis) -> dict:
     """Valida, arma la tarea y la registra en la cola. Devuelve el estado inicial."""
-    if isinstance(solicitud, SolicitudPerfil):
+    if isinstance(solicitud, SolicitudPerfil | SolicitudAnalisis):
         usuario = normalizar_usuario(solicitud.usuario)
         p = {
             "usuario": usuario,
@@ -25,10 +25,16 @@ def crear(solicitud: SolicitudPerfil | SolicitudBusqueda) -> dict:
             "comentarios": solicitud.comentarios,
             "max_comentarios": solicitud.max_comentarios,
         }
-        en_cache = None if solicitud.refrescar else perfil_controller.desde_cache(**p)
+        # Perfil y análisis reciben los mismos parámetros; solo cambia qué controller se usa
+        es_analisis = isinstance(solicitud, SolicitudAnalisis)
+        en_cache = None if solicitud.refrescar else (
+            analisis_controller.desde_cache(**p) if es_analisis else perfil_controller.desde_cache(**p)
+        )
 
         async def tarea() -> dict:
-            """Extrae el perfil cuando le llegue el turno en la cola."""
+            """Extrae (y si es análisis, analiza) el perfil cuando le llegue el turno en la cola."""
+            if es_analisis:
+                return await analisis_controller.analizar(**p, refrescar=solicitud.refrescar)
             return await perfil_controller.obtener_perfil(**p, refrescar=solicitud.refrescar)
 
     else:

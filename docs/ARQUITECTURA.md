@@ -37,11 +37,20 @@ HTML: **escucha esas respuestas JSON** mientras navega y además lee el JSON inc
 | **paraphrase-multilingual-mpnet-base-v2** | Modelo que convierte un texto en un vector de 768 números; textos con significado parecido quedan cerca ("uñas para boda" ≈ "manicura de novia") |
 | **NumPy** | Similitud coseno entre la búsqueda y la descripción de cada video |
 
+### Análisis con IA (Hugging Face)
+
+| Herramienta | Para qué se usa en el proyecto |
+|---|---|
+| **transformers** + **PyTorch (CPU)** | Ejecutan los modelos de Hugging Face en la PC, sin token ni APIs externas |
+| **Helsinki-NLP/opus-mt-es-en** (+ sentencepiece, sacremoses) | Traduce las descripciones al inglés (el modelo de personalidad solo entiende inglés) |
+| **Minej/bert-base-personality** | Estima los 5 rasgos del Big Five del creador (sigmoide por rasgo, sin softmax) |
+| **pysentimiento** (robertuito) | Sentimiento y emociones de comentarios en español; solo se publican porcentajes |
+
 ### Pruebas
 
 | Herramienta | Para qué se usa en el proyecto |
 |---|---|
-| **pytest** | 74 pruebas que no tocan TikTok (scrapers simulados en `tests/conftest.py`) + 2 reales con `--tiktok` |
+| **pytest** | 89 pruebas que no tocan TikTok ni los modelos del análisis (simulados en `tests/conftest.py`) + 2 reales con `--tiktok` + 1 con modelos reales con `--hf` |
 | **TestClient** de FastAPI (httpx) | Llama a los endpoints como lo haría la app, sin levantar el servidor |
 
 ---
@@ -63,6 +72,7 @@ app/
 │   ├── salud.py                GET  /api/salud
 │   ├── perfil.py               GET  /api/perfil/{usuario}
 │   ├── busqueda.py             GET  /api/busqueda
+│   ├── analisis.py             GET  /api/analisis/{usuario}
 │   └── extracciones.py         POST /api/extracciones · GET /api/extracciones/{id}
 ├── validations/                Limpian lo que envía la app y responden 400 si no sirve
 │   ├── usuario.py              "@Jordi " → "jordi"
@@ -70,6 +80,7 @@ app/
 ├── controllers/                Lógica de cada caso de uso: caché → navegador → errores HTTP
 │   ├── perfil_controller.py
 │   ├── busqueda_controller.py
+│   ├── analisis_controller.py  Caché propia → perfil (reusa su caché) → modelos en otro hilo
 │   └── extracciones_controller.py   Convierte una solicitud en una tarea para la cola
 ├── services/                   Trabajo pesado o con estado
 │   ├── tiktok_scraper.py       Extrae perfil + videos + comentarios (Crawlee/Playwright)
@@ -78,11 +89,13 @@ app/
 │   ├── cola_extracciones.py    Cola en memoria con UN trabajador para las extracciones asíncronas
 │   ├── cache.py                Caché en memoria con vencimiento (15 min)
 │   ├── embeddings.py           Carga el modelo local y calcula similitudes
-│   └── ranking.py              Puntaje = 0.5 relevancia + 0.3 interacción + 0.2 alcance
+│   ├── ranking.py              Puntaje = 0.5 relevancia + 0.3 interacción + 0.2 alcance
+│   └── analisis.py             IA local: traducción + Big Five del creador + sentimiento agregado
 ├── schemas/                    Contrato JSON con la app (modelos Pydantic)
 │   ├── perfil.py               RespuestaPerfil, Perfil, Video, Estadisticas, Comentario
 │   ├── busqueda.py             RespuestaBusqueda, VideoBusqueda, Creador, Puntaje
-│   └── extracciones.py         SolicitudPerfil/Busqueda, EstadoExtraccion
+│   ├── analisis.py             RespuestaAnalisis, Big5, Sentimiento, Emociones
+│   └── extracciones.py         SolicitudPerfil/Busqueda/Analisis, EstadoExtraccion
 └── utils/                      Funciones pequeñas y puras (fáciles de probar)
     ├── normalizadores.py       JSON de TikTok (inglés) → formato de la API (español)
     ├── formato.py              Fechas ISO 8601 y anonimización SHA-256
@@ -96,6 +109,7 @@ tests/
 ├── test_validaciones.py        Reglas de validations/
 ├── test_servicios.py           Caché, ranking, cola, tiempo máximo, modelo real
 ├── test_endpoints.py           Todos los endpoints y códigos HTTP
+├── test_analisis.py            Lógica del análisis con modelos falsos (+ reales con --hf)
 └── test_tiktok_real.py         Contra TikTok de verdad (solo con --tiktok)
 ```
 
@@ -144,6 +158,17 @@ se puede probar (o reemplazar por un falso en las pruebas) sin levantar la API.
 6. busqueda_controller       guarda TODOS los ordenados en caché y responde los primeros max_resultados
 ```
 
+### Análisis — `GET /api/analisis/jordifiallos`
+
+```
+1. analisis_controller       ¿análisis en caché? → responde al instante
+2. perfil_controller         el MISMO flujo de "Perfil" (si el perfil está en caché, no abre TikTok)
+3. asyncio.to_thread         los modelos corren en otro hilo (la API sigue respondiendo); uno a la vez
+4. services/analisis.py      bio + descripciones → limpiar → traducir es→en por trozos → Big Five
+                             (sigmoide por rasgo); comentarios → pysentimiento → solo porcentajes
+5. analisis_controller       error en los modelos → 503 · si todo bien, guarda en caché y responde
+```
+
 ### Extracción asíncrona — `POST /api/extracciones`
 
 ```
@@ -169,6 +194,8 @@ GET /api/extracciones/{id} → estado actual, posición en la cola y cada cuánt
 | Saltar videos con 0 comentarios | No hace falta abrirlos |
 | Hashtags públicos para la búsqueda | `/search` de TikTok exige iniciar sesión (regla: solo datos públicos) |
 | Modelo de embeddings **local** | Gratis, sin enviar textos a terceros; entiende sinónimos en español |
+| Modelos de análisis locales con **carga perezosa** | Sin token ni costo; la API arranca rápido y solo carga ~1.6 GB si alguien pide un análisis |
+| Big Five solo del **creador**; comentarios solo agregados | LOPDP: los comentaristas no son sujeto de perfilamiento |
 | Un navegador a la vez + cola con un trabajador | Bajo volumen (menos bloqueos de TikTok, menos RAM) |
 | Tiempo máximo propio (`correr_con_limite`) | `crawler.run()` de Crawlee ignora la cancelación; sin esto un navegador trabado bloqueaba la cola indefinidamente |
 | Caché en memoria de 15 min | Evita repetir extracciones; acepta que se pierda al reiniciar |

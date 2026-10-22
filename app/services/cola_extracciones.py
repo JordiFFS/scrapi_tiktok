@@ -35,7 +35,7 @@ Tarea = Callable[[], Awaitable[dict]]
 class Extraccion:
     """Una extracción y todo lo que la app puede consultar sobre ella."""
     id: str
-    tipo: str                      # "perfil" | "busqueda"
+    tipo: str                      # "perfil" | "busqueda" | "analisis"
     parametros: dict               # lo que pidió la app (ya normalizado)
     clave: str                     # identifica solicitudes iguales (para no repetirlas)
     tarea: Tarea | None            # qué ejecutar; None si ya nació completada (caché)

@@ -23,5 +23,13 @@ class CacheMemoria:
         return None
 
     def guardar(self, clave: str, datos: dict) -> None:
-        """Guarda (o reemplaza) los datos con la hora actual."""
-        self._datos[clave] = (time.time(), datos)
+        """
+        Guarda (o reemplaza) los datos con la hora actual.
+
+        De paso borra las entradas vencidas: si no, cada perfil distinto consultado quedaría
+        en memoria para siempre (aunque ya no se devuelva) y la RAM crecería sin límite.
+        """
+        ahora = time.time()
+        for vieja in [c for c, (momento, _) in self._datos.items() if ahora - momento >= self.ttl]:
+            del self._datos[vieja]
+        self._datos[clave] = (ahora, datos)

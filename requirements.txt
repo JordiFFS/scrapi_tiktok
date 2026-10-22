@@ -2,3 +2,12 @@ crawlee[playwright]>=1.0
 fastapi>=0.110
 uvicorn>=0.29
 fastembed>=0.9
+
+# --- Análisis con Hugging Face (GET /api/analisis) ---
+# Instalar ANTES torch para CPU, o pip bajará la versión con CUDA (~4 GB extra):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.9               # 2.9 es la primera con ruedas para Python 3.14 (probado: 2.14.1+cpu)
+transformers>=4.40       # probado con 5.20
+sentencepiece>=0.2       # tokenizer del traductor opus-mt
+sacremoses>=0.1          # normalización de texto que usa el traductor opus-mt
+pysentimiento>=0.7.3     # sentimiento y emociones en español (modelos robertuito)

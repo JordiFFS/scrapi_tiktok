@@ -37,3 +37,9 @@ Thumbs.db
 
 # Configuración local de Claude Code
 .claude/settings.local.json
+
+# Modelos de Hugging Face / fastembed si se descargan dentro del proyecto
+# (por defecto van a ~/.cache/huggingface y ~/.cache/fastembed, fuera del repo)
+.cache/
+modelos/
+hf_cache/

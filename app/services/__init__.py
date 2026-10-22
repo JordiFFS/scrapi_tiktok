@@ -1,3 +1,3 @@
 """
-Servicios: scrapers de TikTok, cola de extracciones, caché, embeddings y ranking.
+Servicios: scrapers de TikTok, cola de extracciones, caché, embeddings, ranking y análisis con IA.
 """

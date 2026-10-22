@@ -5,7 +5,8 @@ Extracciones asíncronas: la forma recomendada de usar la API desde la app móvi
     GET  /api/extracciones/{id}   estado: pendiente -> en_proceso -> completada | error
 
 Flujo en la app:
-    1. POST con {"tipo": "perfil", "usuario": "..."} o {"tipo": "busqueda", "q": "..."}
+    1. POST con {"tipo": "perfil", "usuario": "..."}, {"tipo": "busqueda", "q": "..."}
+       o {"tipo": "analisis", "usuario": "..."}
     2. Mostrar "cargando" y hacer GET cada `consultar_de_nuevo_en_seg` segundos
     3. Cuando estado = "completada", leer `resultado`; si es "error", mostrar `error.detalle`
 """
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/api/extracciones", tags=["Extracciones asíncronas"]
     "",
     response_model=EstadoExtraccion,
     status_code=202,
-    summary="Crear una extracción (perfil o búsqueda) en segundo plano",
+    summary="Crear una extracción (perfil, búsqueda o análisis) en segundo plano",
     responses={
         400: {"description": "Usuario o búsqueda inválidos"},
         429: {"description": "La cola está llena"},
@@ -37,6 +38,10 @@ async def crear_extraccion(
             "busqueda": {
                 "summary": "Búsqueda por tema",
                 "value": {"tipo": "busqueda", "q": "uñas acrílicas", "max_resultados": 10},
+            },
+            "analisis": {
+                "summary": "Análisis (Big Five + sentimiento)",
+                "value": {"tipo": "analisis", "usuario": "jordifiallos", "max_videos": 10},
             },
         }
     ),

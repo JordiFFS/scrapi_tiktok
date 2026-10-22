@@ -29,6 +29,15 @@ def test_cache_guarda_y_vence(monkeypatch):
     assert c.obtener("x") is None
 
 
+def test_cache_borra_las_vencidas_al_guardar(monkeypatch):
+    c = CacheMemoria(ttl_segundos=10)
+    c.guardar("vieja", {"a": 1})
+    ahora = time.time()
+    monkeypatch.setattr(modulo_cache.time, "time", lambda: ahora + 11)
+    c.guardar("nueva", {"b": 2})
+    assert list(c._datos) == ["nueva"]  # la vieja ya no ocupa memoria
+
+
 # ---------- ranking ----------
 
 def _video(vistas, likes=0, comentarios=0, compartidos=0, guardados=0):

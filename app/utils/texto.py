@@ -13,7 +13,8 @@ _PALABRAS_VACIAS = {
 }
 
 # Hashtags genéricos que se usan para ganar alcance y no dicen nada del contenido
-_HASHTAGS_GENERICOS = {
+# (también los descarta services/analisis.py antes de analizar al creador)
+HASHTAGS_GENERICOS = {
     "fyp", "foryou", "foryoupage", "parati", "paratii", "viral", "viralvideo", "xyzbca",
     "trending", "tiktok", "fy", "fypシ", "fypage", "4u", "capcut",
 }
@@ -71,7 +72,7 @@ def texto_para_embedding(descripcion: str | None, hashtags: list[str]) -> str:
         "Uñas rosas 💅 #uñas #fyp"  ->  "uñas rosas uñas"
     """
     desc = re.sub(r"#\S+", " ", descripcion or "")  # los hashtags se agregan limpios abajo
-    etiquetas = [h for h in hashtags if h.lower() not in _HASHTAGS_GENERICOS]
+    etiquetas = [h for h in hashtags if h.lower() not in HASHTAGS_GENERICOS]
     texto = " ".join([desc, *etiquetas]).lower()
     texto = re.sub(r"[^\w\s.,!?¿¡'-]", " ", texto)  # fuera emojis y símbolos
     return re.sub(r"\s+", " ", texto).strip()

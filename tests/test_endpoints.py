@@ -6,6 +6,7 @@ Comprueban códigos de estado, el contrato JSON con la app móvil, la caché y l
 import time
 
 from app.core import config
+from app.services import analisis
 
 
 def _esperar(cliente, id_, max_seg=5) -> dict:
@@ -128,6 +129,45 @@ def test_busqueda_errores(cliente):
     assert cliente.get("/api/busqueda", params={"q": "explota"}).status_code == 502
 
 
+# ---------- /api/analisis ----------
+
+def test_analisis_ok_y_contrato(cliente):
+    r = cliente.get("/api/analisis/@Jordifiallos?max_videos=2")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["usuario"] == "jordifiallos" and d["desde_cache"] is False
+    assert set(d["big5_creador"]) == {"apertura", "responsabilidad", "extraversion", "amabilidad", "neuroticismo"}
+    assert set(d["comentarios"]) == {"total_analizados", "sentimiento", "emociones"}
+    assert set(d["modelos"]) == {"big5", "traduccion", "sentimiento", "emociones"}
+    assert d["nota"] and "fecha_analisis" in d and "advertencia" in d
+
+
+def test_analisis_reutiliza_el_perfil_en_cache(cliente, tiktok_falso):
+    cliente.get("/api/perfil/jordifiallos")
+    assert cliente.get("/api/analisis/jordifiallos").json()["desde_cache"] is False
+    assert cliente.get("/api/analisis/jordifiallos").json()["desde_cache"] is True
+    assert tiktok_falso.llamadas_perfil == ["jordifiallos"]  # un solo scraping para todo
+
+
+def test_analisis_refrescar_vuelve_a_extraer(cliente, tiktok_falso):
+    cliente.get("/api/analisis/jordifiallos")
+    assert cliente.get("/api/analisis/jordifiallos?refrescar=true").json()["desde_cache"] is False
+    assert len(tiktok_falso.llamadas_perfil) == 2
+
+
+def test_analisis_errores(cliente, monkeypatch):
+    assert cliente.get("/api/analisis/noexiste").status_code == 404
+    assert cliente.get("/api/analisis/explota").status_code == 502
+    assert cliente.get("/api/analisis/x?max_videos=31").status_code == 422
+
+    def sin_modelos(datos):
+        raise OSError("sin internet para descargar el modelo")
+
+    monkeypatch.setattr(analisis, "analizar_perfil", sin_modelos)
+    r = cliente.get("/api/analisis/otro")
+    assert r.status_code == 503 and "sin internet" in r.json()["detail"]
+
+
 # ---------- /api/extracciones ----------
 
 def test_extraccion_perfil_completa(cliente):
@@ -200,3 +240,22 @@ def test_extraccion_cola_llena_429(cliente, tiktok_falso):
 
 def test_extraccion_inexistente_404(cliente):
     assert cliente.get("/api/extracciones/noexiste123").status_code == 404
+
+
+def test_extraccion_analisis(cliente):
+    r = cliente.post("/api/extracciones", json={"tipo": "analisis", "usuario": "@Jordifiallos", "max_videos": 2})
+    assert r.status_code == 202 and r.json()["tipo"] == "analisis"
+    fin = _esperar(cliente, r.json()["id"])
+    assert fin["estado"] == "completada" and "big5_creador" in fin["resultado"]
+    # La segunda vez nace completada desde la caché del análisis
+    d = cliente.post("/api/extracciones", json={"tipo": "analisis", "usuario": "jordifiallos", "max_videos": 2}).json()
+    assert d["estado"] == "completada" and d["resultado"]["desde_cache"] is True
+
+
+def test_extraccion_analisis_y_perfil_no_se_mezclan(cliente, tiktok_falso):
+    tiktok_falso.demora = 0.3
+    perfil = cliente.post("/api/extracciones", json={"tipo": "perfil", "usuario": "uno"}).json()
+    analisis_ = cliente.post("/api/extracciones", json={"tipo": "analisis", "usuario": "uno"}).json()
+    assert perfil["id"] != analisis_["id"]
+    assert "videos" in _esperar(cliente, perfil["id"])["resultado"]
+    assert "big5_creador" in _esperar(cliente, analisis_["id"])["resultado"]
